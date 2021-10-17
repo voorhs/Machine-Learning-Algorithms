@@ -2,28 +2,30 @@ import numpy as np
 from sklearn.datasets import make_blobs
 
 class KMeans:
-    def __init__(self, X, n_clusters):
+    def __init__(self, X, n_clusters, n_features):
         """
         X is array of points (x, y)
         """
 
         self.X = X
         self.n_clusters = n_clusters
+        self.n_features = n_features
         self.n_points = X.shape[0]
     
     def init_random(self):
         """
         initializes array of centroids using 'random' strategy:
-        random 2dim points from the area of X
+        random points from the area of X
         """
 
-        min_x, min_y = np.min(self.X, axis=0)
-        max_x, max_y = np.max(self.X, axis=0)
+        min_coords = np.min(self.X, axis=0)
+        max_coords = np.max(self.X, axis=0)
 
-        y_coords = np.random.rand(self.n_clusters) * (max_y - min_y) + min_y
-        x_coords = np.random.rand(self.n_clusters) * (max_x - min_x) + min_x
+        coords = np.zeros((self.n_features, self.n_clusters))
+        for i in range(self.n_features):
+            coords[i] = np.random.rand(self.n_clusters) * (max_coords[i] - min_coords[i]) + min_coords[i]
 
-        self.centroids = np.vstack([x_coords,y_coords]).T
+        self.centroids = coords.T
 
     def init_sample(self):
         """
@@ -36,9 +38,9 @@ class KMeans:
     
     def compute_distance_matrix(self, centr_ind):   
         """
-        returns matrix 'centr_ind' times 'n_clusters' where
-        [i][j] is distance between point X[i] and centroids[j],
-        i.e. rho( X[i], centroid[j] )
+        высчитывает и возвращает матрицу расстояний от всех точек до центроидов,
+        построенных 'centr_int-1` центроидов.
+        нужно для реализации `distant`-стратегии инициализации центроидов
         """     
         res = np.zeros((self.n_points, centr_ind))
         for i in range(0, self.n_points):
@@ -53,7 +55,7 @@ class KMeans:
         3rd is the farthest point of X from 1st ans 2nd centroids etc.
         """
         self.indeces = np.zeros(self.n_clusters, dtype=int)
-        self.centroids = np.zeros((self.n_clusters, 2))
+        self.centroids = np.zeros((self.n_clusters, self.n_features))
 
         t = np.random.randint(0, self.n_points, size=1)
         self.indeces[0] = t
@@ -66,7 +68,7 @@ class KMeans:
 
     def init_centr(self, heur):
         """
-        initializes centroids with given heuristic
+        initializes centroids by given heuristic
         """
         dct = {
             "sample": self.init_sample,
@@ -77,7 +79,7 @@ class KMeans:
     
     def near_center(self, point):
         """
-        returns the index of the nearest centroids from given point
+        returns the index of the nearest centroid from given point
         """
         res = 0
         for i in range(self.n_clusters):
@@ -87,7 +89,7 @@ class KMeans:
 
     def set_labels(self):
         """
-        sets labels of membership in the cluster
+        marks points from X in accordance with which centroid is closer
         """
         self.labels = np.zeros(self.n_points)
         for i in range(self.n_points):
@@ -95,17 +97,17 @@ class KMeans:
 
     def update_centers(self):
         """
-        compute new centroids for every cluster
+        updates centroids for every cluster
         """
-        self.centroids = np.zeros((self.n_clusters, 2))
+        self.centroids = np.zeros((self.n_clusters, self.n_features))
         for i in range(self.n_clusters):
             self.centroids[i] = self.X[self.labels == i].mean(axis=0)
         return self.centroids
     
     def fit(self, heur="random", prec=0.001):
         """
-        main function that launches centroids and labels initialization
-        and executes iterative k-means algorithm
+        main function that calls centroids initialization
+        and performs iterative k-means algorithm
         """
         self.init_centr(heur)
         self.set_labels()
