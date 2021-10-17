@@ -106,69 +106,79 @@ class KMeans:
         return self.centroids
     
     def perform(self, heur, prec):
+        """
+        iterative k-means algorithm
+        """
         self.init_centr(heur)
         self.set_labels()
 
         while(np.linalg.norm(self.centroids - self.update_centers()) > prec):
             self.set_labels()
         
-        self.distances = self.compute_distance_matrix(self.n_clusters)
-        self.compute_SSW()
-        self.save_config()
+        self.compute_SSW()  # чтобы потом сравнить
+        self.save_config()  # с другими конфигурациями
 
         return self
     
     def save_config(self):
-        self.configs.append([self.centroids, self.labels, self.indeces, self.distances, self.SSW])
-
-    def find_best_norm(self, n_start, prec):
-        min_counter = n_start
-        res = 0
-        for i in range(n_start):
-            counter = 0
-            for j in range(n_start):
-                if np.linalg.norm(self.configs[i][0] - self.configs[j][0]) > 0.1:
-                    counter += 1
-            if counter < min_counter:
-                res = i
-                min_counter = counter
+        """
+        saves centroids, labels, X and SSW to 'configs' attribute
+        """
+        self.configs.append([self.centroids, self.labels, self.X, self.SSW])
+    
+    def sort_points(self):
+        """
+        sorts points of X by cluster labels
+        """
+        together = np.hstack([self.labels.T.reshape((self.n_points, 1)), self.X])
+        together = sorted(together, key=lambda x: x[0])
         
-        return self.configs[res]
+        self.X = np.array(together)[:, 1:]
+        self.labels = np.array(together)[:, 0]
     
     def compute_SSW(self):
-        cluster_squares = self.distances ** 2
+        """
+        computes SSW for current cluster configuration
+        """
+        cluster_squares = self.compute_distance_matrix(self.n_clusters) ** 2
 
-        self.within_cluster_squares = np.zeros(self.n_clusters)
+        within_cluster_squares = np.zeros(self.n_clusters)
         for i in range(self.n_clusters):
-                self.within_cluster_squares[i] = np.sum(cluster_squares[self.labels == i], axis=0)[i]
+                within_cluster_squares[i] = np.sum(cluster_squares[self.labels == i], axis=0)[i]
 
-        self.SSW = np.sum(self.within_cluster_squares)
+        self.SSW = np.sum(within_cluster_squares)
     
-    def find_best_var(self, n_start):
+    def find_best(self, n_start):
+        """
+        finds the best cluster configuration by SSW
+        """
         SSW_values = np.zeros(n_start)
         for i in range(n_start):
-            SSW_values[i] = self.configs[i][4]
+            SSW_values[i] = self.configs[i][3]
         
         return self.configs[np.argmin(SSW_values)]
 
-    def fit(self, heur="random", n_start=3, prec_kmeans=0.001, prec_find_best=0.1):
+    def fit(self, heur="sample", n_start=3, prec=0.001):
         """
-        main function that calls centroids initialization
-        and performs iterative k-means algorithm
+        main function that performs iterative k-means algorithm and finds the best configuration
         """
         self.configs = []
         for i in range(n_start):
-            self.perform(heur, prec_kmeans)
+            self.perform(heur, prec)
         
-        best_config = self.find_best_var(n_start)
+        best_config = self.find_best(n_start)
         self.centroids = best_config[0]
         self.labels = best_config[1]
-        self.indeces = best_config[2]
-        self.distances = best_config[3]
+        self.X = best_config[2]
+        self.sort_points()
+        self.distances = self.compute_distance_matrix(self.n_clusters)
 
         return self
 
 class elbow:
+    """
+    the way to find optimal clusters count
+    """
     def __init__(self, X, n_features, heur='sample', kmax=10, n_start=3):
         self.kmax = kmax
         self.variances_for_k = np.zeros(kmax)
@@ -179,6 +189,10 @@ class elbow:
             self.models.append(m)
         
     def choose_k(self):
+        """
+        researches the values of SSW to find optimal count.
+        perfectly works on gaussian blobs
+        """
         diffrences = np.zeros(self.kmax)
         for k in range(1, self.kmax):
             diffrences[k] = self.variances_for_k[k - 1] - self.variances_for_k[k]
