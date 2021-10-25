@@ -146,6 +146,7 @@ class KMeans:
         together = np.hstack([self.labels.T.reshape((self.n_points, 1)), self.X])
         together = sorted(together, key=lambda x: x[0])
         
+
         self.X = np.array(together)[:, 1:]
         self.labels = np.array(together)[:, 0]
 
@@ -235,7 +236,25 @@ class pair_matrix:
 
         for i in range(model.n_points):
             model.pair_distances[i] = np.linalg.norm(model.X - model.X[i], axis=-1)
+        return model.pair_distances
         
+    def compute_pair_distances_X(self, X, labels):
+        self.X = X
+        self.n_points = X.shape[0]
+        self.labels = labels
+
+        together = np.hstack([self.labels.T.reshape((self.n_points, 1)), self.X])
+        together = sorted(together, key=lambda x: x[0])
+        
+        self.X = np.array(together)[:, 1:]
+        self.labels = np.array(together)[:, 0]
+
+        self.pair_distances = np.zeros((self.n_points, self.n_points))
+
+        for i in range(self.n_points):
+            self.pair_distances[i] = np.linalg.norm(self.X - self.X[i], axis=-1)
+        
+        return self.pair_distances
 
     def get_pair_submatrix(model, *clust_nums):
         """
@@ -302,66 +321,68 @@ class Test_time:
     нужно для исследования зависимости времени выполнения от объёма данных и отрисовки
     соответствующего графика
     """
-    def test(self, points_range=[10, 101], points_step=10, n_clusters=7):
+    def __init__(self, init=True, points_range=[10, 20001], points_step=100, n_clusters=10):
         """
         прогоняет `kmeans` по разным входным данным, у которых количество точек меняется в пределах `points_range`
         с шагом `points_step`; число кластеров изменяется от 1 до `n_clusters'.
         во время работы сохраняет результат в файл `data.npy` в директории 
         f"time_{date.tm_year}_{date.tm_mon}_{date.tm_mday}_{date.tm_hour}_{date.tm_min}_{date.tm_sec}"
         """
+
+        Test_time.points_range = points_range
+        Test_time.points_step = points_step
+        Test_time.n_clusters = n_clusters
+        
         date = localtime()
         current_dir = f"time_{date.tm_year}_{date.tm_mon}_{date.tm_mday}_{date.tm_hour}_{date.tm_min}_{date.tm_sec}"
         mkdir(current_dir)
-        result = np.ones((n_clusters, (points_range[1] - points_range[0]) // points_step + 1, 3))
+        self.dir = current_dir
+
+        if not init:
+            return
+        
+        result = np.ones((n_clusters, (points_range[1] - points_range[0]) // points_step + 1), dtype=np.float16)
         for i in range(0, n_clusters):
             for j in range(points_range[0], points_range[1], points_step):
                 X, y = make_blobs(n_samples=j, centers=i+1)
-
-                start_time = time()
-                KMeans(X, i+1).fit(heur="random")
-                result[i, (j - points_range[0]) // points_step, 0] = time() - start_time
-
+                
                 start_time = time()
                 KMeans(X, i+1).fit(heur="sample")
-                result[i, (j - points_range[0]) // points_step, 1] = time() - start_time
-
-                start_time = time()
-                KMeans(X, i+1).fit(heur="distant")
-                result[i, (j - points_range[0]) // points_step, 2] = time() - start_time
+                result[i, (j - points_range[0]) // points_step] = time() - start_time
         
         np.save(f"{current_dir}/time", result)
-        self.dir = current_dir
-        self.points_range = points_range
-        self.points_step = points_step
-        self.n_clusters = n_clusters
         self.data = result
-        return self
     
-    def plot(self, heur):
+    def plot(self, heur, path=None):
         """
         строит `plt.stackplot` с заголовком f"Время работы `kmeans` ({heur})"
         и сохраняет его в директории теста, где сохранялся файл `data.npy`
         """
-        fig, ax = plt.subplots(figsize=(15,5))
-        ax.grid(axis='y', alpha=0.4)
-        ax.set_xlim([self.points_range[0], self.points_range[1]])
 
-        dct = {
-            "random": 0,
-            "sample": 1,
-            "distant": 2
-        }
+        if not (path is None):
+            Test_time.data = np.load(path)
+
+        fig, ax = plt.subplots(2, 1, figsize=(15,10))
+        ax[0].grid(axis='y', alpha=0.4)
+        ax[0].set_xlim([self.points_range[0], self.points_range[1]])
 
         tags = [f"{i+1} кластеров" for i in range(self.n_clusters)]
 
         for i in range(self.n_clusters - 1, 0, -1):  # for each n_clusters
-            ax.stackplot(np.arange(self.points_range[0], self.points_range[1], self.points_step), self.data[i, :, dct[heur]], labels=tags[i])
+            ax[0].stackplot(np.arange(self.points_range[0], self.points_range[1], self.points_step), self.data[i, :], labels=tags[i])
 
-        ax.legend(title="Число кластеров", loc='upper left')
-        ax.set_ylabel("Секунды")
-        ax.set_xlabel("Число точек")
-        ax.set_title(f"Время работы `kmeans` ({heur})", fontsize=22)
-        plt.savefig(f"{self.dir}/plot")
+        ax[1].plot(np.arange(self.points_range[0], self.points_range[1], self.points_step), np.mean(self.data, axis=0))
+        ax[1].grid(axis='y', alpha=0.4)
+        ax[1].set_xlim([self.points_range[0], self.points_range[1]])
+        ax[1].set_ylabel("Секунды")
+        ax[1].set_xlabel("Число точек")
+        ax[1].set_title(f"Среднее время работы `kmeans` ({heur})", fontsize=22)
+
+        ax[0].legend(title="Число кластеров", loc='upper left')
+        ax[0].set_ylabel("Секунды")
+        ax[0].set_xlabel("Число точек")
+        ax[0].set_title(f"Время работы `kmeans` ({heur})", fontsize=22)
+        plt.savefig(f"{self.dir}/plot", dpi=400)
 
 
 class Test_heur:    
@@ -369,7 +390,7 @@ class Test_heur:
     нужен для исследования разных стратегий инициализации на точность результата
     строит соответствующую табллицу
     """
-    def test(self, points_range=[100, 1000], points_step = 100, n_clusters=10):
+    def __init__(self, points_range=[100, 1000], points_step = 100, n_clusters=10):
         """
         прогоняет `kmeans` по разным входным данным, у которых количество точек меняется в пределах `points_range`
         с шагом `points_step`; число кластеров изменяется от 1 до `n_clusters`.
@@ -403,7 +424,6 @@ class Test_heur:
         self.points_step = points_step
         self.n_points = (points_range[1] - points_range[0]) // points_step + 1
         self.n_clusters = n_clusters
-        return self
     
     def read(self, heur, n_clusters, n_points):
         """
@@ -450,4 +470,76 @@ class Test_heur:
 
         plt.savefig(f"{self.dir}/{heur}")
         plt.show()
+
+
+class Test_dim:    
+    """
+    нужен для проверки работы `kmeans` на многомерних точках,
+    строит соответствующую табллицу
+    """
+    def __init__(self, heur, n_features=4, points_range=[100, 1000], points_step=100, n_clusters=10):
+        """
+        прогоняет `kmeans` по разным входным данным, у которых количество точек меняется в пределах `points_range`
+        с шагом `points_step`; число кластеров изменяется от 1 до `n_clusters`.
+        """
+        date = localtime()
+        current_dir = f"dim_{date.tm_year}_{date.tm_mon}_{date.tm_mday}_{date.tm_hour}_{date.tm_min}_{date.tm_sec}"
+        mkdir(current_dir)
+        for i in range(n_clusters):
+            for j in range(points_range[0], points_range[1] + 1, points_step):
+                X, y = make_blobs(n_samples=j, centers=i+1, n_features=n_features)
+                save_dir = f"{current_dir}/{i}_{j}"
+                mkdir(save_dir)         
+                
+                m = KMeans(X, i+1, n_features=n_features).fit(heur=heur)
+                np.save(f"{save_dir}/{heur}_rhos", pair_matrix.compute_pair_distances(m))
+        
+        self.heur = heur
+        self.dir = current_dir
+        self.points_range = points_range
+        self.points_step = points_step
+        self.n_points = (points_range[1] - points_range[0]) // points_step + 1
+        self.n_clusters = n_clusters
     
+    def read(self, n_clusters, n_points):
+        """
+        вспомогательная функция чтения записанных файлов `.npy`
+        """
+        current_dir = f"{self.dir}/{n_clusters}_{n_points}" 
+        X = np.load(f"{current_dir}/{self.heur}_rhos.npy")
+        return X
+    
+    def plot(self):        
+        """
+        вдоль горизонтали увеличивается количество точек (от 100 до 1000), а вдоль вертикали увеличивается
+        число кластеров (от 1 до 10). В каждой ячейке таблицы результат применения `Kmeans`.
+        В качестве тестовых данных `sklearn.datasets.make_blobs`.
+        """
+        fig, ax = plt.subplots(self.n_clusters, self.n_points, figsize=(40, 40))
+
+        for i in range(self.n_clusters):
+            for j in range(self.n_points):
+                X = self.read(self.heur, i, self.points_range[0] + j * self.points_step)
+                ax[i, j].matshow(X)
+
+
+        plt.subplots_adjust(wspace=0.05, hspace=0.05)
+
+        fig.suptitle(f'"{self.heur}" strategy', fontsize=60)
+
+        for i in range(self.n_clusters):
+            for j in range(self.n_points):
+                ax[i, j].tick_params(axis="x", which="both", bottom=False, labelbottom=False)
+                ax[i, j].tick_params(axis="y", which="both", left=False, labelleft=False)
+
+        for j in range(self.n_points):
+            ax[0, j].set_title(str(self.points_range[0] + j * self.points_step), fontsize=30)
+            ax[-1, j].set_xlabel(str(self.points_range[0] + j * self.points_step), fontsize=30)
+
+        for i in range(self.n_clusters):
+            ax[i, 0].set_ylabel(str(i + 1), fontsize=30)
+            ax[i, -1].set_ylabel(str(i + 1), fontsize=30)
+            ax[i, -1].yaxis.set_label_position("right")
+
+        plt.savefig(f"{self.dir}/{self.heur}")
+        plt.show()
