@@ -1,6 +1,6 @@
 # Machine Learning Algorithms
 
-Own implementation of Machine learning algorithms:
+Own implementation of machine learning algorithms:
 
 | Algorithm                                      | Code                                                         | Experiments                                                  | Report                                                       | Source                                                       |
 | ---------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
