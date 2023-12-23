@@ -20,7 +20,7 @@ Let m<d and
 - $f:\mathbb{R}^d\to\mathbb{R}^m$ be encoding function,
 - $g:\mathbb{R}^m\to\mathbb{R}^d$ be decoding function.
 
-*Goal: find such $f,g$, that $x\approx g(f(x))$ in average for samples $X$.* To be exact, the approximate equality means following:
+Goal: find such $f,g$, that $x\approx g(f(x))$ in average for samples $X$. To be exact, the approximate equality means following:
 
 ```math
 f^*(x)=\arg\min_f\|x-g(f(x))\|_2^2.
